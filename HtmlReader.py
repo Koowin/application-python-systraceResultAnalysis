@@ -24,7 +24,7 @@ class HtmlReader:
         argc = 0
         options = ("disk", "sched", "database")
 
-        # To do: if optionsp[n] in __proceess_name
+        # To do: if optionsp[n] in (__proceess_name or file_name)
         for i in range(0,3):
             if options[i] in self.lines[-4]:
                 argc += 1
@@ -37,7 +37,7 @@ class HtmlReader:
             print("Error: Wrong file. This program can only analyze 'data', 'sched', 'database' types.")
         elif self.type == 0:
             self.__default_setting()
-            self.__disk_analyze()
+            return self.__disk_analyze()
         elif self.type == 1:
             self.__default_setting()
             return self.__sched_analyze()
@@ -67,27 +67,80 @@ class HtmlReader:
         self.begin_time = int(self.lines[self.search_start_line_index][offset_time_stamp:offset_time_stamp+12].replace('.', ''))
         end_time = int(self.lines[-7][offset_time_stamp:offset_time_stamp+12].replace('.', ''))
         self.total_time = end_time - self.begin_time
-        # print(self.pid)
-        # print(self.begin_time)
-        # print(self.total_time)
 
 
     # To do
     def __disk_analyze(self):
-        print("disk")
-    
-    # To do
+        default_offset_cpu = 32
+        offset_cpu = default_offset_cpu
+        offset_tgid = offset_cpu - 8
+        offset_time_stamp = offset_cpu + 10
+        offset_operation = offset_cpu + 24
+        print("Start: Disk I/O operations analyze.")
+
+        disk_begin = []
+        disk_file_size = []
+        self.disk_time = 0
+
+        for line in self.lines[self.search_start_line_index:-6]:
+            try:
+                int(line[offset_cpu:offset_cpu+3])
+                if self.pid == line[offset_tgid:offset_tgid+5]:
+                    if "write_begin" in line[offset_operation:]:
+                        offset_size = line.index("len ") + 4
+                        file_string = ""
+                        for i in range(offset_size, offset_size+4):
+                            if line[i] == ' ':
+                                break
+                            file_string += line[i]
+                        disk_file_size.append(int(file_string))
+                        time_stamp = int(line[offset_time_stamp:offset_time_stamp+12].replace('.', ''))
+                        disk_begin.append(time_stamp - self.begin_time)
+
+                    elif "write_end" in line[offset_operation:]:
+                        time_stamp = int(line[offset_time_stamp:offset_time_stamp+12].replace('.', ''))
+                        self.disk_time += (time_stamp - disk_begin[-1] - self.begin_time)
+                        
+            except:
+                # No default string location.
+                offset_cpu = line.index('[') + 1
+                offset_tgid = offset_cpu - 8
+                offset_time_stamp = offset_cpu + 10
+                offset_operation = offset_cpu + 24
+
+                # Do job
+                if self.pid == line[offset_tgid:offset_tgid+5]:
+                    if "write_begin" in line[offset_operation:]:
+                        offset_size = line.index("len ") + 4
+                        file_string = ""
+                        for i in range(offset_size, offset_size+4):
+                            if line[i] == ' ':
+                                break
+                            file_string += line[i]
+                        disk_file_size.append(int(file_string))
+                        time_stamp = int(line[offset_time_stamp:offset_time_stamp+12].replace('.', ''))
+                        disk_begin.append(time_stamp - self.begin_time)
+
+                    elif "write_end" in line[offset_operation:]:
+                        time_stamp = int(line[offset_time_stamp:offset_time_stamp+12].replace('.', ''))
+                        self.disk_time += (time_stamp - disk_begin[-1] - self.begin_time)
+                        
+                # Re arange offset
+                offset_cpu = default_offset_cpu
+                offset_tgid = offset_cpu - 8
+                offset_time_stamp = offset_cpu + 10
+                offset_operation = offset_cpu + 24
+
+        return [disk_begin, disk_file_size]
+
+
     def __sched_analyze(self):
         default_offset_cpu = 32
         offset_cpu = default_offset_cpu
         offset_time_stamp = offset_cpu + 10
         offset_operation = offset_cpu + 24
         offset_arg = offset_cpu + 38
-        # print("sched")
-        # print(self.lines[self.search_start_line_index+2][offset_cpu:offset_cpu+3])
-        # print(self.lines[self.search_start_line_index+2][offset_time_stamp:offset_time_stamp+12])
-        # print(self.lines[self.search_start_line_index+2][offset_operation:offset_operation+12])
-        # print(self.lines[self.search_start_line_index+2][offset_arg:])
+        print("Start: CPU schedule analyze.")
 
         cpu_begin = []
         cpu_end = []
@@ -136,7 +189,13 @@ class HtmlReader:
                 cpu_end.pop()
             else:
                 break
-
+        
+        # Calculate cpu using time
+        self.cpu_time = 0
+        for i in range(0, len(cpu_begin)):
+            for begin, end in zip(cpu_begin[i], cpu_end[i]):
+                self.cpu_time += end - begin
+        
         return [cpu_begin, cpu_end]
 
         
@@ -159,11 +218,15 @@ if __name__=="__main__":
         result = html_reader.start_analyze()
 
         if html_reader.type == 0:
-            print()
+            print(html_reader.disk_time)
+            print(html_reader.total_time)
             # To do : Draw Graph
+            # Drawer.disk_graph(result)
             # To do : Upload to AWS
         elif html_reader.type == 1:
-            Drawer.cpu_graph(result)
+            print(html_reader.cpu_time)
+            print(html_reader.total_time)
+            # Drawer.cpu_graph(result)
             # To do : Upload to AWS
         elif html_reader.type == 2:
             print()

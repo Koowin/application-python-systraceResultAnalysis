@@ -9,3 +9,8 @@ def cpu_graph(data):
     ax.autoscale()
     ax.set_ylim(-1,len(data[0])+1)
     plt.show()
+
+def disk_graph(data):
+    ax = plt.subplot()
+    ax.plot(data[0], data[1], 'bo')
+    plt.show()
