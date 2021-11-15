@@ -68,9 +68,23 @@ class HtmlReader:
 
         for line in self.lines:
             if self.process_name in line:
-                self.pid = line[14:19]
+                for i in range(len(line)):
+                    if line[i] == ' ':
+                        offset_first = i
+                        break
+                for i in range(offset_first, len(line)):
+                    if line[i] != ' ':
+                        offset_first = i
+                        break
+                self.pid = ""
+                for i in line[offset_first:]:
+                    if i != ' ':
+                        self.pid += i
+                    else:
+                        break
                 name_check = True
                 break
+
         if not name_check:
             self.type = -1
             print("Error: Your process name not in this file.")
@@ -113,11 +127,11 @@ class HtmlReader:
         
         for line in self.lines[self.search_start_line_index:-6]:
             try:
-                offset_cpu = line[31:].index('[') + 32
+                offset_cpu = line[18:].index('[') + 19
             except:
                 continue
             offset_time_stamp_end = line[offset_cpu:].index(':') + offset_cpu
-            if self.pid == line[offset_cpu-8:offset_cpu-3]:
+            if self.pid == line[offset_cpu-8:offset_cpu-3].replace(' ', ''):
                 if "write_begin" in line[offset_time_stamp_end+2:]:
                     time_stamp = int(line[offset_time_stamp_end-13:offset_time_stamp_end].replace('.', ''))
                     disk_begin.append(time_stamp - self.begin_time)
@@ -196,17 +210,20 @@ class HtmlReader:
         for line in self.lines[self.search_start_line_index:-6]:
             # Find offset
             try:
-                offset_cpu = line[31:].index('[') + 32
+                offset_cpu = line[18:].index('[') + 19
             except:
                 continue
-            if self.pid == line[offset_cpu-7:offset_cpu-2]:
+            #print(line[offset_cpu-8:offset_cpu-3])
+            if self.pid == line[offset_cpu-8:offset_cpu-3].replace(' ', ''):
                 # Check is excute
-                if "execute" in line[offset_cpu+54:offset_cpu+61]:
-                    if "S" == line[offset_cpu+46:offset_cpu+47]:
-                        time_stamp = int(line[offset_cpu+10:offset_cpu+23].replace('.', ''))
+                if "execute" in line[offset_cpu+49:]:
+                    if "S" == line[offset_cpu+45:offset_cpu+46]:
+                        offset_time_stamp = line[offset_cpu:].index(':') + offset_cpu
+                        time_stamp = int(line[offset_time_stamp-13:offset_time_stamp].replace('.', ''))
                         database_begin.append(time_stamp - self.begin_time)
-                    elif "F" == line[offset_cpu+46:offset_cpu+47]:
-                        time_stamp = int(line[offset_cpu+10:offset_cpu+23].replace('.', ''))
+                    elif "F" == line[offset_cpu+45:offset_cpu+46]:
+                        offset_time_stamp = line[offset_cpu:].index(':') + offset_cpu
+                        time_stamp = int(line[offset_time_stamp-13:offset_time_stamp].replace('.', ''))
                         self.database_time += (time_stamp - self.begin_time - database_begin[-1])
         
         return database_begin
@@ -223,7 +240,7 @@ if __name__=="__main__":
         html_reader = HtmlReader(sys.argv[1], sys.argv[2])
         html_reader.type_checker()
         result = html_reader.start_analyze()
-
+        print(html_reader.pid)
         if html_reader.type == 0:
             # Upload to AWS
             value = html_reader.disk_time / html_reader.total_time
