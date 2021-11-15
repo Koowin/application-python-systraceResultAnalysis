@@ -112,8 +112,11 @@ class HtmlReader:
         self.disk_time = 0
         
         for line in self.lines[self.search_start_line_index:-6]:
-            offset_cpu = line.index('[') + 1
-            offset_time_stamp_end = line.index(':')
+            try:
+                offset_cpu = line[31:].index('[') + 32
+            except:
+                continue
+            offset_time_stamp_end = line[offset_cpu:].index(':') + offset_cpu
             if self.pid == line[offset_cpu-8:offset_cpu-3]:
                 if "write_begin" in line[offset_time_stamp_end+2:]:
                     time_stamp = int(line[offset_time_stamp_end-13:offset_time_stamp_end].replace('.', ''))
@@ -146,10 +149,13 @@ class HtmlReader:
         for i in range(0,10):
             cpu_begin.append(list())
             cpu_end.append(list())
-        
+
+        self.pid = self.pid.replace(' ','')
         for line in self.lines[self.search_start_line_index:-6]:
-            self.pid = self.pid.replace(' ','')
-            offset_cpu = line[31:].index('[')+32
+            try:
+                offset_cpu = line[31:].index('[')+32
+            except:
+                continue
             cpu_num = int(line[offset_cpu:offset_cpu+3])
             if "sched_switch" in line[offset_cpu+24:]:
                 if "prev_pid="+self.pid in line[offset_cpu+38:]:
@@ -189,15 +195,18 @@ class HtmlReader:
         self.database_time = 0
         for line in self.lines[self.search_start_line_index:-6]:
             # Find offset
-            offset_cpu = line.index('[')
+            try:
+                offset_cpu = line[31:].index('[') + 32
+            except:
+                continue
             if self.pid == line[offset_cpu-7:offset_cpu-2]:
                 # Check is excute
                 if "execute" in line[offset_cpu+54:offset_cpu+61]:
                     if "S" == line[offset_cpu+46:offset_cpu+47]:
-                        time_stamp = int(line[offset_cpu+11:offset_cpu+24].replace('.', '').replace(':', ''))
+                        time_stamp = int(line[offset_cpu+10:offset_cpu+23].replace('.', ''))
                         database_begin.append(time_stamp - self.begin_time)
                     elif "F" == line[offset_cpu+46:offset_cpu+47]:
-                        time_stamp = int(line[offset_cpu+11:offset_cpu+24].replace('.', '').replace(':', ''))
+                        time_stamp = int(line[offset_cpu+10:offset_cpu+23].replace('.', ''))
                         self.database_time += (time_stamp - self.begin_time - database_begin[-1])
         
         return database_begin
