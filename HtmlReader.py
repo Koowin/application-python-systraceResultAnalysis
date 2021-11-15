@@ -171,7 +171,11 @@ class HtmlReader:
                 offset_cpu = line[13:].index('[')+14
             except:
                 continue
-            cpu_num = int(line[offset_cpu:offset_cpu+3])
+            try:
+                cpu_num = int(line[offset_cpu:offset_cpu+3])
+            except:
+                offset_cpu = line[offset_cpu+1:].index('[') + offset_cpu + 2
+                cpu_num = int(line[offset_cpu:offset_cpu+3])
             if "sched_switch" in line[offset_cpu+24:]:
                 if "prev_pid="+self.pid in line[offset_cpu+38:]:
                     offset_time_stamp = line[offset_cpu:].index(':') + offset_cpu
@@ -241,7 +245,6 @@ if __name__=="__main__":
         html_reader = HtmlReader(sys.argv[1], sys.argv[2])
         html_reader.type_checker()
         result = html_reader.start_analyze()
-        print(html_reader.pid)
         if html_reader.type == 0:
             # Upload to AWS
             value = html_reader.disk_time / html_reader.total_time
