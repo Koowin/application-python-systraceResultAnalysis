@@ -170,11 +170,15 @@ class HtmlReader:
         
         # Calculate cpu using time
         self.cpu_time = 0
+
         for i in range(0, len(cpu_begin)):
+            if len(cpu_begin[i]) < len(cpu_end[i]):
+                del cpu_end[i][0]
+            elif len(cpu_begin[i]) > len(cpu_end[i]):
+                del cpu_begin[i][-1]
             for begin, end in zip(cpu_begin[i], cpu_end[i]):
                 self.cpu_time += end - begin
         
-        print(cpu_begin)
         return [cpu_begin, cpu_end]
 
         
@@ -210,10 +214,6 @@ if __name__=="__main__":
         html_reader = HtmlReader(sys.argv[1], sys.argv[2])
         html_reader.type_checker()
         result = html_reader.start_analyze()
-        
-        print(html_reader.pid)
-        print(html_reader.type)
-        print(html_reader.total_time)
 
         if html_reader.type == 0:
             # Upload to AWS
