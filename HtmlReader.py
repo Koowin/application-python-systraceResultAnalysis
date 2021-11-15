@@ -88,11 +88,11 @@ class HtmlReader:
             self.search_start_line_index += 1
 
         try:
-            offset_time_stamp = self.lines[self.search_start_line_index].index(':') - 13
-            self.begin_time = int(self.lines[self.search_start_line_index][offset_time_stamp:offset_time_stamp+13].replace('.', '').replace(':', ''))
+            offset_time_stamp = self.lines[self.search_start_line_index][23:].index(':')
+            self.begin_time = int(self.lines[self.search_start_line_index][offset_time_stamp+10:offset_time_stamp+23].replace('.', ''))
 
-            offset_time_stamp = self.lines[-7].index(':') - 13
-            end_time = int(self.lines[-7][offset_time_stamp:offset_time_stamp+13].replace('.', '').replace(':', ''))
+            offset_time_stamp = self.lines[-7][23:].index(':')
+            end_time = int(self.lines[-7][offset_time_stamp+10:offset_time_stamp+23].replace('.', ''))
             self.total_time = end_time - self.begin_time
 
         except:
@@ -100,118 +100,67 @@ class HtmlReader:
 
     # To do
     def __disk_analyze(self):
-        default_offset_cpu = 32
-        offset_cpu = default_offset_cpu
-        offset_tgid = offset_cpu - 8
-        offset_time_stamp = offset_cpu + 10
-        offset_operation = offset_cpu + 24
+        # default_offset_cpu = 32
+        # offset_cpu = default_offset_cpu
+        # offset_tgid = offset_cpu - 8
+        # offset_time_stamp = offset_cpu + 10
+        # offset_operation = offset_cpu + 24
         print("Start: Disk I/O operations analyze.")
 
         disk_begin = []
         disk_file_size = []
         self.disk_time = 0
-
+        
         for line in self.lines[self.search_start_line_index:-6]:
-            try:
-                int(line[offset_cpu:offset_cpu+3])
-                if self.pid == line[offset_tgid:offset_tgid+5]:
-                    if "write_begin" in line[offset_operation:]:
-                        offset_size = line.index("len ") + 4
-                        file_string = ""
-                        for i in range(offset_size, offset_size+4):
-                            if line[i] == ' ':
-                                break
-                            file_string += line[i]
-                        disk_file_size.append(int(file_string))
-                        time_stamp = int(line[offset_time_stamp:offset_time_stamp+13].replace('.', '').replace(':', ''))
-                        disk_begin.append(time_stamp - self.begin_time)
+            offset_cpu = line.index('[') + 1
+            offset_time_stamp_end = line.index(':')
+            if self.pid == line[offset_cpu-8:offset_cpu-3]:
+                if "write_begin" in line[offset_time_stamp_end+2:]:
+                    time_stamp = int(line[offset_time_stamp_end-13:offset_time_stamp_end].replace('.', ''))
+                    disk_begin.append(time_stamp - self.begin_time)
 
-                    elif "write_end" in line[offset_operation:]:
-                        time_stamp = int(line[offset_time_stamp:offset_time_stamp+13].replace('.', '').replace(':', ''))
-                        self.disk_time += (time_stamp - disk_begin[-1] - self.begin_time)
-                        
-            except:
-                # No default string location.
-                offset_cpu = line.index('[') + 1
-                offset_tgid = offset_cpu - 8
-                offset_time_stamp = offset_cpu + 10
-                offset_operation = offset_cpu + 24
+                    file_string = ""
+                    offset_size = line.index("len ")
+                    
+                    if line[offset_size-2] == ',':
+                        offset_size += 6
+                    else:
+                        offset_size += 4
 
-                # Do job
-                if self.pid == line[offset_tgid:offset_tgid+5]:
-                    if "write_begin" in line[offset_operation:]:
-                        offset_size = line.index("len ") + 4
-                        file_string = ""
-                        for i in range(offset_size, offset_size+4):
-                            if line[i] == ' ':
-                                break
-                            file_string += line[i]
-                        disk_file_size.append(int(file_string))
-                        time_stamp = int(line[offset_time_stamp:offset_time_stamp+13].replace('.', '').replace(':', ''))
-                        disk_begin.append(time_stamp - self.begin_time)
+                    for i in line[offset_size:offset_size+4]:
+                        if i == ' ' or i == ',':
+                            break
+                        file_string += i
+                    disk_file_size.append(int(file_string))
 
-                    elif "write_end" in line[offset_operation:]:
-                        time_stamp = int(line[offset_time_stamp:offset_time_stamp+13].replace('.', '').replace(':', ''))
-                        self.disk_time += (time_stamp - disk_begin[-1] - self.begin_time)
-
-                # Re arange offset
-                offset_cpu = default_offset_cpu
-                offset_tgid = offset_cpu - 8
-                offset_time_stamp = offset_cpu + 10
-                offset_operation = offset_cpu + 24
+                elif "write_end" in line[offset_time_stamp_end+2:]:
+                    time_stamp = int(line[offset_time_stamp_end-13:offset_time_stamp_end].replace('.', ''))
+                    self.disk_time += (time_stamp - disk_begin[-1] - self.begin_time)
 
         return [disk_begin, disk_file_size]
 
 
     def __sched_analyze(self):
-        default_offset_cpu = 32
-        offset_cpu = default_offset_cpu
-        offset_time_stamp = offset_cpu + 10
-        offset_operation = offset_cpu + 24
-        offset_arg = offset_cpu + 38
-        print("Start: CPU schedule analyze.")
-
         cpu_begin = []
         cpu_end = []
         for i in range(0,10):
             cpu_begin.append(list())
             cpu_end.append(list())
         
-
         for line in self.lines[self.search_start_line_index:-6]:
-            try:
-                cpu_num = int(line[offset_cpu:offset_cpu+3])
-                if "sched_switch" in line[offset_operation:offset_operation+12]:
-                    if "prev_pid="+self.pid in line[offset_arg:]:
-                        time_stamp = int(line[offset_time_stamp:offset_time_stamp+13].replace('.', '').replace(':', ''))
-                        cpu_end[cpu_num].append(time_stamp - self.begin_time)
-                    elif "next_pid="+self.pid in line[offset_arg:]:
-                        time_stamp = int(line[offset_time_stamp:offset_time_stamp+13].replace('.', '').replace(':', ''))
-                        cpu_begin[cpu_num].append(time_stamp - self.begin_time)
-                
-            except:
-                # No default string location.
-                offset_cpu = line.index('[') + 1
-                offset_time_stamp = offset_cpu + 10
-                offset_operation = offset_cpu + 24
-                offset_arg = offset_cpu + 38
+            self.pid = self.pid.replace(' ','')
+            offset_cpu = line[31:].index('[')+32
+            cpu_num = int(line[offset_cpu:offset_cpu+3])
+            if "sched_switch" in line[offset_cpu+24:]:
+                if "prev_pid="+self.pid in line[offset_cpu+38:]:
+                    offset_time_stamp = line[offset_cpu:].index(':') + offset_cpu
+                    time_stamp = int(line[offset_time_stamp-13:offset_time_stamp].replace('.', ''))
+                    cpu_end[cpu_num].append(time_stamp - self.begin_time)
+                elif "next_pid="+self.pid in line[offset_cpu+38:]:
+                    offset_time_stamp = line[offset_cpu:].index(':') + offset_cpu
+                    time_stamp = int(line[offset_time_stamp-13:offset_time_stamp].replace('.', ''))
+                    cpu_begin[cpu_num].append(time_stamp - self.begin_time)
 
-                # Do job
-                cpu_num = int(line[offset_cpu:offset_cpu+3])
-                if "sched_switch" in line[offset_operation:offset_operation+12]:
-                    if "prev_pid="+self.pid in line[offset_arg:]:
-                        time_stamp = int(line[offset_time_stamp:offset_time_stamp+13].replace('.', '').replace(':', ''))
-                        cpu_end[cpu_num].append(time_stamp - self.begin_time)
-                    elif "next_pid="+self.pid in line[offset_arg:]:
-                        time_stamp = int(line[offset_time_stamp:offset_time_stamp+13].replace('.', '').replace(':', ''))
-                        cpu_begin[cpu_num].append(time_stamp - self.begin_time)
-
-                # Re arange offset
-                offset_cpu = default_offset_cpu
-                offset_time_stamp = offset_cpu + 10
-                offset_operation = offset_cpu + 24
-                offset_arg = offset_cpu + 38
-        
         for i in range(0,10):
             if cpu_begin[-1] == list():
                 cpu_begin.pop()
@@ -225,6 +174,7 @@ class HtmlReader:
             for begin, end in zip(cpu_begin[i], cpu_end[i]):
                 self.cpu_time += end - begin
         
+        print(cpu_begin)
         return [cpu_begin, cpu_end]
 
         
@@ -261,6 +211,10 @@ if __name__=="__main__":
         html_reader.type_checker()
         result = html_reader.start_analyze()
         
+        print(html_reader.pid)
+        print(html_reader.type)
+        print(html_reader.total_time)
+
         if html_reader.type == 0:
             # Upload to AWS
             value = html_reader.disk_time / html_reader.total_time
