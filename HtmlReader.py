@@ -265,21 +265,21 @@ if __name__=="__main__":
             # Upload to AWS
             value = html_reader.disk_time / html_reader.total_time
             AwsConnector.upload_value(0, sys.argv[1], html_reader.begin_time, value)
-            # Drawer.disk_graph(result)
+            Drawer.disk_graph(result)
             
         elif html_reader.type == 1:
             # Upload to AWS
             value = html_reader.cpu_time / html_reader.total_time
             AwsConnector.upload_value(1, sys.argv[1], html_reader.begin_time, value)
-            # Drawer.cpu_graph(result)
+            Drawer.cpu_graph(result)
 
         elif html_reader.type == 2:
             # Upload to AWS
             value = html_reader.database_time / html_reader.total_time
             AwsConnector.upload_value(2, sys.argv[1], html_reader.begin_time, value)
-            # To do : Draw Graph
+            Drawer.database_graph(result)
 
     # Get average data and show
     else:
         result = AwsConnector.download_all(sys.argv[1])
-        print(result)
+        Drawer.average_graph(result)
