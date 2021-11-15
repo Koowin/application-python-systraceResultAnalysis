@@ -127,9 +127,10 @@ class HtmlReader:
         
         for line in self.lines[self.search_start_line_index:-6]:
             try:
-                offset_cpu = line[18:].index('[') + 19
+                offset_cpu = line[13:].index('[') + 14
             except:
                 continue
+            
             offset_time_stamp_end = line[offset_cpu:].index(':') + offset_cpu
             if self.pid == line[offset_cpu-8:offset_cpu-3].replace(' ', ''):
                 if "write_begin" in line[offset_time_stamp_end+2:]:
@@ -167,7 +168,7 @@ class HtmlReader:
         self.pid = self.pid.replace(' ','')
         for line in self.lines[self.search_start_line_index:-6]:
             try:
-                offset_cpu = line[31:].index('[')+32
+                offset_cpu = line[13:].index('[')+14
             except:
                 continue
             cpu_num = int(line[offset_cpu:offset_cpu+3])
@@ -210,7 +211,7 @@ class HtmlReader:
         for line in self.lines[self.search_start_line_index:-6]:
             # Find offset
             try:
-                offset_cpu = line[18:].index('[') + 19
+                offset_cpu = line[13:].index('[') + 14
             except:
                 continue
             #print(line[offset_cpu-8:offset_cpu-3])
