@@ -64,32 +64,22 @@ class HtmlReader:
     def __default_setting(self):
         self.search_start_line_index = 0
 
-        name_check = False
+        # Find pid with process_name
+        for i in range(len(self.lines)):
+            if "<!-- BEGIN TRACE -->" in self.lines[i]:
+                offset_process_dump = i+4
+        for line in self.lines[offset_process_dump:]:
+            process_info = line.split()
+            try:
+                if process_info[8] == self.process_name:
+                    # Find pid
+                    self.pid = process_info[1]
+                    break
+            except:
+                print("Error: Can't find process name")
+                exit()
 
-        for line in self.lines:
-            if self.process_name in line:
-                for i in range(len(line)):
-                    if line[i] == ' ':
-                        offset_first = i
-                        break
-                for i in range(offset_first, len(line)):
-                    if line[i] != ' ':
-                        offset_first = i
-                        break
-                self.pid = ""
-                for i in line[offset_first:]:
-                    if i != ' ':
-                        self.pid += i
-                    else:
-                        break
-                name_check = True
-                break
-
-        if not name_check:
-            self.type = -1
-            print("Error: Your process name not in this file.")
-            return
-
+        # Find trace data line index 
         for line in self.lines:
             if "#              | |        |      |   ||||       |         |" in line:
                 self.search_start_line_index += 1
@@ -112,7 +102,6 @@ class HtmlReader:
         except:
             self.type = -1
 
-    # To do
     def __disk_analyze(self):
         # default_offset_cpu = 32
         # offset_cpu = default_offset_cpu
@@ -159,32 +148,63 @@ class HtmlReader:
 
 
     def __sched_analyze(self):
+        print("Start: Disk I/O operations analyze.")
         cpu_begin = []
         cpu_end = []
         for i in range(0,10):
             cpu_begin.append(list())
             cpu_end.append(list())
 
-        self.pid = self.pid.replace(' ','')
-        for line in self.lines[self.search_start_line_index:-6]:
+        # pid_list = []
+        # # Append group pid
+        # for i in range(len(self.lines)):
+        #     if "USER            PID   TID CMD" in self.lines[i]:
+        #         offset_process_list = i+1
+        # for i in range(offset_process_list, len(self.lines)):
+        #     process_info = self.lines[i].split()
+        #     if process_info[1] == self.pid:
+        #         offset_process_list = i
+        #         break
+        # for line in self.lines[offset_process_list:]:
+        #     process_info = line.split()
+        #     if process_info[1] == self.pid:
+        #         pid_list.append(process_info[2])
+        #     else:
+        #         break
+        
+        for i in range(self.search_start_line_index, len(self.lines)-7):
             try:
-                offset_cpu = line[13:].index('[')+14
+                offset_cpu = self.lines[i][13:].index('[')+14
             except:
                 continue
             try:
-                cpu_num = int(line[offset_cpu:offset_cpu+3])
+                cpu_num_i = int(self.lines[i][offset_cpu:offset_cpu+3])
             except:
-                offset_cpu = line[offset_cpu+1:].index('[') + offset_cpu + 2
-                cpu_num = int(line[offset_cpu:offset_cpu+3])
-            if "sched_switch" in line[offset_cpu+24:]:
-                if "prev_pid="+self.pid in line[offset_cpu+38:]:
-                    offset_time_stamp = line[offset_cpu:].index(':') + offset_cpu
-                    time_stamp = int(line[offset_time_stamp-13:offset_time_stamp].replace('.', ''))
-                    cpu_end[cpu_num].append(time_stamp - self.begin_time)
-                elif "next_pid="+self.pid in line[offset_cpu+38:]:
-                    offset_time_stamp = line[offset_cpu:].index(':') + offset_cpu
-                    time_stamp = int(line[offset_time_stamp-13:offset_time_stamp].replace('.', ''))
-                    cpu_begin[cpu_num].append(time_stamp - self.begin_time)
+                offset_cpu = self.lines[i][offset_cpu+1:].index('[') + offset_cpu + 2
+                cpu_num_i = int(self.lines[i][offset_cpu:offset_cpu+3])
+
+            if (self.pid in self.lines[i][offset_cpu-8:offset_cpu-3]) and ("sched_switch" in self.lines[i][offset_cpu+24:]):
+                offset_time_stamp = self.lines[i][offset_cpu:].index(':') + offset_cpu
+                time_stamp = int(self.lines[i][offset_time_stamp-13:offset_time_stamp].replace('.', ''))
+                cpu_end[cpu_num_i].append(time_stamp - self.begin_time)
+                
+                for j in range(i-1, self.search_start_line_index, -1):
+                    try:
+                        offset_cpu = self.lines[j][13:].index('[')+14
+                    except:
+                        continue
+                    try:
+                        cpu_num_j = int(self.lines[j][offset_cpu:offset_cpu+3])
+                    except:
+                        offset_cpu = self.lines[j][offset_cpu+1:].index('[') + offset_cpu + 2
+                        cpu_num_j = int(self.lines[j][offset_cpu:offset_cpu+3])
+
+                    if cpu_num_i == cpu_num_j and "sched_switch" in self.lines[j][offset_cpu+24:]:
+                        offset_time_stamp = self.lines[j][offset_cpu:].index(':') + offset_cpu
+                        time_stamp = int(self.lines[j][offset_time_stamp-13:offset_time_stamp].replace('.', ''))
+                        cpu_begin[cpu_num_j].append(time_stamp - self.begin_time)
+                        break
+                            
 
         for i in range(0,10):
             if cpu_begin[-1] == list():
@@ -192,7 +212,7 @@ class HtmlReader:
                 cpu_end.pop()
             else:
                 break
-        
+
         # Calculate cpu using time
         self.cpu_time = 0
 
@@ -206,8 +226,7 @@ class HtmlReader:
         
         return [cpu_begin, cpu_end]
 
-        
-    # To do
+    
     def __database_analyze(self):
         print("Start: Database operation analyze.")
         database_begin = []
@@ -255,7 +274,7 @@ if __name__=="__main__":
             # Upload to AWS
             value = html_reader.cpu_time / html_reader.total_time
             AwsConnector.upload_value(1, sys.argv[1], html_reader.begin_time, value)
-            Drawer.cpu_graph(result)
+            Drawer.cpu_graph(result, html_reader.cpu_time, html_reader.total_time)
 
         elif html_reader.type == 2:
             # Upload to AWS
